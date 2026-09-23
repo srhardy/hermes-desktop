@@ -48,6 +48,12 @@ Stable and beta macOS builds verify the exact architecture-specific `better-sqli
 
 Electron Builder explicitly unpacks `node_modules/better-sqlite3/prebuilds/*.node` from ASAR. After signing and notarization, `scripts/verify-native-module-architecture.sh` locates `darwin-x64.node` or `darwin-arm64.node` inside the packaged app and rejects a missing or mismatched binary. [[tests/release-artifacts.test.ts]] keeps the package rule and both release workflows aligned with the dependency's runtime layout.
 
+### Packaged dependency scope
+
+Only modules the packaged runtime requires stay in `dependencies`; everything bundled at build time lives in `devDependencies`, keeping ~360 MB of build-only packages out of the installer.
+
+`electron-vite` bundles main, preload, and renderer imports at build time, so the shipped `dependencies` set is exactly `better-sqlite3` (native, explicit external) and `electron-updater` (loaded via runtime `require` in [[src/main/app/updater.ts#setupUpdater]], which the bundler leaves external). All renderer libraries — `three`, `lucide-react`, `react-syntax-highlighter`, `ethers`, and friends — are `devDependencies`: they install at build time, inline into `out/`, and never reach the shipped ASAR's `node_modules` (~391 MB → ~31 MB). New runtime-only modules join `dependencies` only when a packaged process imports them without bundling; anything else belongs in `devDependencies`.
+
 ### Platform package identity
 
 Linux packages use the space-free `/opt/HermesOne` directory while macOS keeps the existing `Hermes One.app` bundle and executable name. RPM filenames retain the `.rpm` extension expected by release uploads.
